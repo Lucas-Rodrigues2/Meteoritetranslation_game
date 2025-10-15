@@ -21,6 +21,7 @@ window.addEventListener('load', ()=>{
   let lastTime = 0;
   let score = 0;
   let lives = 3;
+  let lostWords = []; // words that caused a life loss (for game over summary)
   let running = false;
   let words = [];
   // controls elements (will be looked up after DOM ready)
@@ -116,6 +117,7 @@ window.addEventListener('load', ()=>{
 
   function startGame(){
     meteors = [];
+    lostWords = [];
     spawnTimer = 0;
     lastTime = performance.now();
     score = 0;
@@ -141,7 +143,23 @@ window.addEventListener('load', ()=>{
   function showGameOver(){
     let el = document.createElement('div');
     el.className = 'game-over';
-    el.innerHTML = `<div>Game Over<br>Score: ${score}<br><button id="go-restart">Recommencer</button></div>`;
+    // load high score from localStorage
+    const prevHigh = parseInt(localStorage.getItem('mt_highscore') || '0', 10);
+    let newHigh = prevHigh;
+    if(score > prevHigh){
+      localStorage.setItem('mt_highscore', String(score));
+      newHigh = score;
+    }
+    // prepare lost words list HTML
+    let lostHtml = '<em>Aucun</em>';
+    if(lostWords.length>0){
+      lostHtml = '<ul>' + lostWords.map(w=>{
+        const left = w.shown === 'fr' ? w.fr : w.en;
+        const right = w.shown === 'fr' ? w.en : w.fr;
+        return `<li>${left} → ${right}</li>`;
+      }).join('') + '</ul>';
+    }
+    el.innerHTML = `<div style="text-align:center">\n      <strong>Game Over</strong><br>\n      Score: ${score} <br>\n      Meilleur score: ${newHigh} <br>\n      <div style=\"margin-top:8px;text-align:left;display:inline-block;max-width:420px\">\n        <div style=\"font-weight:600;margin-bottom:6px\">Mots qui ont causé une perte de vie:</div>\n        ${lostHtml}\n      </div>\n      <div style=\"margin-top:10px\"><button id=\"go-restart\">Recommencer</button></div>\n    </div>`;
     document.body.appendChild(el);
     // hide bottom UI (input + restart) on game over
     if(gameBottom) gameBottom.style.display = 'none';
@@ -186,7 +204,9 @@ window.addEventListener('load', ()=>{
   ctx.fillText(textToShow, m.x, m.y + 6);
 
       if(m.y > height - 20){
-        meteors.splice(i,1);
+        // meteor reached bottom: record the word that caused the life loss
+        const removed = meteors.splice(i,1)[0];
+        lostWords.push({fr: removed.fr, en: removed.en, shown: removed.show});
         lives -= 1;
         updateUI();
         if(lives<=0){ endGame(); return; }
@@ -212,11 +232,10 @@ window.addEventListener('load', ()=>{
           return;
         }
       }
-      // wrong guess
-      lives -= 1;
-      updateUI();
+      // wrong guess: do not remove life. Provide visual feedback instead.
+      input.classList.add('wrong');
+      setTimeout(()=> input.classList.remove('wrong'), 300);
       input.value = '';
-      if(lives<=0) endGame();
     }
   });
 

@@ -55,3 +55,7 @@ body{background:linear-gradient(#00111a,#001f2e);color:#fff;overflow:hidden}
 #game-bottom #input{width:360px}
 
 @media (max-width:480px){#input{width:200px}}
+
+/* visual feedback for wrong input */
+#input.wrong{animation: shake 0.28s ease; border-color: #ff6b6b; background: rgba(255,107,107,0.06)}
+@keyframes shake{0%{transform:translateX(0)}25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-4px)}100%{transform:translateX(0)}}
