@@ -79,8 +79,7 @@ window.addEventListener('load', ()=>{
     return a;
   }
 
-  // mode-specific pools
-  let poolRandom = []; // for 'random' mode: shuffled pool
+  // mode-specific pool for final-boss
   let bossQueue = []; // for 'final-boss' mode: queue of words to finish
 
   function resize(){
@@ -116,14 +115,6 @@ window.addEventListener('load', ()=>{
         }
       }
       if(!w) return; // all remaining words are already displayed
-    } else if(gameMode === 'random'){
-      // ensure poolRandom has items
-      if(poolRandom.length === 0){ poolRandom = shuffle(words.slice()); }
-      // find first item in poolRandom not present on screen
-      let idx = -1;
-      for(let i=0;i<poolRandom.length;i++){ if(!present.has(poolRandom[i].fr)){ idx = i; break; } }
-      if(idx === -1) return; // nothing available now
-      w = poolRandom.splice(idx,1)[0];
     } else {
       // normal mode: choose any available word at random
       const available = words.filter(w2=>!present.has(w2.fr));
@@ -174,9 +165,7 @@ window.addEventListener('load', ()=>{
     running = true;
     console.log('Game started');
     // initialize mode-specific pools
-    if(gameMode === 'random'){
-      poolRandom = shuffle(words.slice());
-    } else if(gameMode === 'final-boss'){
+    if(gameMode === 'final-boss'){
       bossQueue = shuffle(words.slice());
     }
     // immediate feedback: spawn one meteor right away so the user sees something

@@ -39,6 +39,9 @@ body{background:linear-gradient(#00111a,#001f2e);color:#fff;overflow:hidden}
 .menu .panel #controls{display:flex;flex-direction:column;align-items:center}
 .menu .panel .control{width:100%;max-width:360px}
 .menu .panel select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.15);color:#fff}
+
+/* Ensure dropdown options are readable on all platforms */
+.menu .panel select, .menu .panel select option{background:#0b1220;color:#fff}
 #loadWordsBtn{padding:8px 12px;border-radius:8px;border:none;background:#1f2937;color:#fff;cursor:pointer}
 #loadWordsBtn:hover{filter:brightness(1.05)}
 
