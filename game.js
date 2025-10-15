@@ -23,6 +23,8 @@ window.addEventListener('load', ()=>{
   let lives = 3;
   let lostWords = []; // words that caused a life loss (for game over summary)
   let destroyedCount = 0; // count of successfully destroyed meteors (for pause every 10)
+  let spawnCount = 0; // number of meteors spawned
+  let pendingPause = false; // when true, wait for screen to be empty then pause 5s
   let running = false;
   let words = [];
   // controls elements (will be looked up after DOM ready)
@@ -128,11 +130,12 @@ window.addEventListener('load', ()=>{
     if(currentDir === 'both') showSide = (Math.random() < 0.5) ? 'fr' : 'en';
     else if(currentDir === 'en-fr') showSide = 'en';
 
-    // length-based factor: longer words => slower
-    const wordToType = showSide === 'en' ? w.en : w.fr;
-    const len = Math.max(1, (wordToType||'').length);
-    // map length to factor between 0.6 (long) and 1.4 (short)
-    const lengthFactor = Math.max(0.6, Math.min(1.4, 1.6 - len*0.07));
+  // length-based factor: base it on the word the player must type (the answer)
+  const answerWord = showSide === 'en' ? w.fr : w.en; // player types the opposite side
+  const len = Math.max(1, (answerWord||'').length);
+  // map length to factor: longer answer => slower fall.
+  // stronger mapping so effect is more noticeable
+  const lengthFactor = Math.max(0.4, Math.min(1.8, 1.8 - len*0.08));
 
     const meter = {
       x: Math.random()*(width-120)+60,
@@ -146,6 +149,9 @@ window.addEventListener('load', ()=>{
       fontSize
     };
     meteors.push(meter);
+    // increment spawn counter and mark pending pause every 10 spawns
+    spawnCount += 1;
+    if(spawnCount % 10 === 0){ pendingPause = true; }
   }
 
   function startGame(){
@@ -240,6 +246,21 @@ window.addEventListener('load', ()=>{
       if(spawnInterval>600) spawnInterval *= 0.995;
     }
 
+    // If a pending pause was scheduled (every 10 spawns), wait until screen is empty then pause silently
+    if(pendingPause && meteors.length === 0){
+      // clear canvas so the last meteor doesn't remain visible
+      ctx.clearRect(0,0,width,height);
+      pendingPause = false;
+      running = false;
+      setTimeout(()=>{
+        running = true;
+        lastTime = performance.now();
+        requestAnimationFrame(loop);
+        input.focus();
+      }, 5000);
+      return; // exit loop until resumed
+    }
+
     // update/draw
     ctx.clearRect(0,0,width,height);
     // debug overlay removed
@@ -292,31 +313,9 @@ window.addEventListener('load', ()=>{
         if(answer.toLowerCase() === val){
           meteors.splice(i,1);
           score += 10;
-          destroyedCount += 1;
           updateUI();
           input.value = '';
-          // Pause 5 seconds every 10 destroyed words
-          if(destroyedCount % 10 === 0){
-            // pause the game
-            running = false;
-            // show a small pause overlay
-            const p = document.createElement('div');
-            p.className = 'game-over';
-            p.innerHTML = `<div style="text-align:center"><strong>Pause</strong><br>Reprise dans 5 secondes...</div>`;
-            document.body.appendChild(p);
-            setTimeout(()=>{
-              // remove overlay and resume
-              const el = document.querySelector('.game-over');
-              if(el) el.remove();
-              // ensure controls hidden and resume loop
-              if(gameBottom) gameBottom.style.display = 'flex';
-              running = true;
-              lastTime = performance.now();
-              requestAnimationFrame(loop);
-              input.focus();
-            }, 5000);
-            return;
-          }
+          return;
           return;
         }
       }
