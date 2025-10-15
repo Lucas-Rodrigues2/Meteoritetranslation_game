@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Météorites - Traduction</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="ui">
+    <div id="info">
+      <span id="score">Score: 0</span>
+      <span id="lives">Vies: 3</span>
+    </div>
+  </div>
+
+  <div id="game-bottom">
+    <input id="input" placeholder="Tapez la traduction anglaise..." autocomplete="off" autofocus>
+    <button id="restart-bottom">Recommencer</button>
+  </div>
+  
+
+  <!-- Centered settings menu (shown at start and after Restart) -->
+  <div id="menu" class="menu">
+    <div class="panel">
+      <h2>Réglages</h2>
+      <div id="controls">
+        <div class="control">
+          <label for="sliderLives">Vies: <span id="valLives">3</span></label>
+          <input id="sliderLives" type="range" min="1" max="10" value="3">
+        </div>
+        <div class="control">
+          <label for="sliderSpeed">Vitesse de chute: <span id="valSpeed">1.0×</span></label>
+          <input id="sliderSpeed" type="range" min="0.05" max="3" step="0.05" value="1">
+        </div>
+        <div class="control">
+          <label for="sliderSpawn">Vitesse d'apparition: <span id="valSpawn">1.5s</span></label>
+          <input id="sliderSpawn" type="range" min="400" max="3000" step="100" value="1500">
+        </div>
+        <div class="control">
+          <label for="dirMode">Mode de traduction</label>
+          <select id="dirMode">
+            <option value="fr-en">Français → English</option>
+            <option value="en-fr">English → Français</option>
+            <option value="both">Les deux</option>
+          </select>
+        </div>
+        <div class="control">
+          <label>Charger une liste de mots</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button id="loadWordsBtn">Charger un fichier JSON</button>
+            <input id="loadWordsFile" type="file" accept="application/json" style="display:none">
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:12px">
+        <button id="start">Start</button>
+      </div>
+    </div>
+  </div>
+  <canvas id="gameCanvas"></canvas>
+  <script src="game.js"></script>
+</body>
+</html>

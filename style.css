@@ -1,0 +1,57 @@
+*{box-sizing:border-box;margin:0;padding:0;font-family:Inter, Roboto, Arial, sans-serif}
+html,body,#gameCanvas{height:100%;}
+body{background:linear-gradient(#00111a,#001f2e);color:#fff;overflow:hidden}
+#ui{position:fixed;left:12px;top:12px;z-index:10;display:flex;flex-direction:column;gap:8px}
+#info{display:flex;gap:12px;align-items:center}
+#score,#lives{background:rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px}
+#restart{padding:8px 12px;border-radius:8px;border:none;background:#ff6b6b;color:#111;cursor:pointer}
+#input{width:320px;padding:10px;border-radius:8px;border:2px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#fff}
+#gameCanvas{display:block;width:100vw;height:100vh}
+.meteorite{position:absolute}
+.game-over{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:20;color:#fff;font-size:24px}
+
+#controls{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.control{display:flex;flex-direction:column;gap:6px;background:rgba(255,255,255,0.03);padding:8px;border-radius:8px;width:340px}
+.control label{font-size:13px;color:#ddd}
+.control input[type=range]{width:100%}
+
+/* hidden by default; add .show-controls to #ui to display */
+#controls{display:flex}
+#ui.show-controls #controls{display:flex}
+
+/* Centered menu */
+.menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:30}
+.menu .panel{background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02));padding:20px;border-radius:12px;color:#fff;width:420px;box-shadow:0 8px 24px rgba(0,0,0,0.6)}
+.menu h2{margin:0 0 8px 0;text-align:center}
+
+/* Nice buttons */
+.menu button, #restart-bottom {
+	padding:10px 18px;border-radius:10px;border:none;cursor:pointer;font-weight:600;letter-spacing:0.3px
+}
+.menu button#start{background:linear-gradient(90deg,#4ade80,#16a34a);color:#072217}
+.menu button#start:hover{filter:brightness(1.05)}
+.menu button#start:active{transform:translateY(1px)}
+#restart-bottom{background:linear-gradient(90deg,#ff9b9b,#ff6b6b);color:#1a0b0b}
+#restart-bottom:hover{filter:brightness(1.05)}
+#restart-bottom:active{transform:translateY(1px)}
+
+/* center sliders */
+.menu .panel #controls{display:flex;flex-direction:column;align-items:center}
+.menu .panel .control{width:100%;max-width:360px}
+.menu .panel select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.15);color:#fff}
+#loadWordsBtn{padding:8px 12px;border-radius:8px;border:none;background:#1f2937;color:#fff;cursor:pointer}
+#loadWordsBtn:hover{filter:brightness(1.05)}
+
+/* hide menu by default; show when #ui has .show-controls */
+.menu{display:none}
+#ui.show-controls ~ .menu{display:flex}
+
+/* When in settings mode, hide game HUD and input */
+#ui.show-controls #info, #ui.show-controls #input{display:none}
+#ui.show-controls ~ #game-bottom{display:none}
+
+/* Game mode: place input and restart at bottom center */
+#game-bottom{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:20;display:flex;gap:12px;align-items:center}
+#game-bottom #input{width:360px}
+
+@media (max-width:480px){#input{width:200px}}
