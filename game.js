@@ -17,11 +17,12 @@ window.addEventListener('load', ()=>{
   let width = 800, height = 600;
   let meteors = [];
   let spawnTimer = 0; // ms accumulator
-  let spawnInterval = 1500; // ms
+  let spawnInterval = 4000; // ms (increased base spawn interval)
   let lastTime = 0;
   let score = 0;
   let lives = 3;
   let lostWords = []; // words that caused a life loss (for game over summary)
+  let destroyedCount = 0; // count of successfully destroyed meteors (for pause every 10)
   let running = false;
   let words = [];
   // controls elements (will be looked up after DOM ready)
@@ -118,6 +119,7 @@ window.addEventListener('load', ()=>{
   function startGame(){
     meteors = [];
     lostWords = [];
+    destroyedCount = 0;
     spawnTimer = 0;
     lastTime = performance.now();
     score = 0;
@@ -165,9 +167,11 @@ window.addEventListener('load', ()=>{
     if(gameBottom) gameBottom.style.display = 'none';
     document.getElementById('go-restart').addEventListener('click', ()=>{
       el.remove();
-      // show controls and require the user to press Start
-      ui.classList.add('show-controls');
+      // behave like the restart-bottom button: show settings and hide game bottom
       running = false;
+      ui.classList.add('show-controls');
+      if(gameBottom) gameBottom.style.display = 'none';
+      const go = document.querySelector('.game-over'); if(go) go.remove();
       input.focus();
     });
   }
@@ -227,8 +231,31 @@ window.addEventListener('load', ()=>{
         if(answer.toLowerCase() === val){
           meteors.splice(i,1);
           score += 10;
+          destroyedCount += 1;
           updateUI();
           input.value = '';
+          // Pause 5 seconds every 10 destroyed words
+          if(destroyedCount % 10 === 0){
+            // pause the game
+            running = false;
+            // show a small pause overlay
+            const p = document.createElement('div');
+            p.className = 'game-over';
+            p.innerHTML = `<div style="text-align:center"><strong>Pause</strong><br>Reprise dans 5 secondes...</div>`;
+            document.body.appendChild(p);
+            setTimeout(()=>{
+              // remove overlay and resume
+              const el = document.querySelector('.game-over');
+              if(el) el.remove();
+              // ensure controls hidden and resume loop
+              if(gameBottom) gameBottom.style.display = 'flex';
+              running = true;
+              lastTime = performance.now();
+              requestAnimationFrame(loop);
+              input.focus();
+            }, 5000);
+            return;
+          }
           return;
         }
       }
