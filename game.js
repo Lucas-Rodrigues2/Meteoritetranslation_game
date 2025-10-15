@@ -33,6 +33,7 @@ window.addEventListener('load', ()=>{
   const valSpeed = document.getElementById('valSpeed');
   const valSpawn = document.getElementById('valSpawn');
   const dirMode = document.getElementById('dirMode');
+  const gameModeEl = document.getElementById('gameMode');
 
   // initial values from sliders
   lives = parseInt(sliderLives.value, 10) || 3;
@@ -68,6 +69,19 @@ window.addEventListener('load', ()=>{
   if(dirMode){
     dirMode.addEventListener('change', ()=>{ currentDir = dirMode.value; });
   }
+  // game mode select (normal | random | final-boss)
+  let gameMode = gameModeEl ? gameModeEl.value : 'normal';
+  if(gameModeEl){ gameModeEl.addEventListener('change', ()=>{ gameMode = gameModeEl.value; }); }
+
+  // helper: shuffle array
+  function shuffle(a){
+    for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+    return a;
+  }
+
+  // mode-specific pools
+  let poolRandom = []; // for 'random' mode: shuffled pool
+  let bossQueue = []; // for 'final-boss' mode: queue of words to finish
 
   function resize(){
     canvas.width = window.innerWidth;
@@ -86,9 +100,36 @@ window.addEventListener('load', ()=>{
     if(words.length===0) return;
     // prevent duplicate french words on screen
     const present = new Set(meteors.map(m=>m.fr));
-    const available = words.filter(w=>!present.has(w.fr));
-    if(available.length===0) return; // no free words to spawn
-    const w = available[Math.floor(Math.random()*available.length)];
+    let w = null;
+    if(gameMode === 'final-boss'){
+      // spawn next from bossQueue; if empty nothing to spawn
+      if(bossQueue.length === 0) return;
+      // find next word not already on screen; try up to bossQueue.length
+      for(let i=0;i<bossQueue.length;i++){
+        const cand = bossQueue[0];
+        if(!present.has(cand.fr)){
+          w = bossQueue.shift();
+          break;
+        } else {
+          // rotate to try next
+          bossQueue.push(bossQueue.shift());
+        }
+      }
+      if(!w) return; // all remaining words are already displayed
+    } else if(gameMode === 'random'){
+      // ensure poolRandom has items
+      if(poolRandom.length === 0){ poolRandom = shuffle(words.slice()); }
+      // find first item in poolRandom not present on screen
+      let idx = -1;
+      for(let i=0;i<poolRandom.length;i++){ if(!present.has(poolRandom[i].fr)){ idx = i; break; } }
+      if(idx === -1) return; // nothing available now
+      w = poolRandom.splice(idx,1)[0];
+    } else {
+      // normal mode: choose any available word at random
+      const available = words.filter(w2=>!present.has(w2.fr));
+      if(available.length===0) return; // no free words to spawn
+      w = available[Math.floor(Math.random()*available.length)];
+    }
     const fontSize = 26 + Math.random()*14;
     const base = 40 + Math.random()*80;
     // decide which side to display based on mode
@@ -132,6 +173,12 @@ window.addEventListener('load', ()=>{
     updateUI();
     running = true;
     console.log('Game started');
+    // initialize mode-specific pools
+    if(gameMode === 'random'){
+      poolRandom = shuffle(words.slice());
+    } else if(gameMode === 'final-boss'){
+      bossQueue = shuffle(words.slice());
+    }
     // immediate feedback: spawn one meteor right away so the user sees something
     spawnMeteor();
     requestAnimationFrame(loop);
@@ -176,6 +223,21 @@ window.addEventListener('load', ()=>{
     });
   }
 
+  function showVictory(){
+    let el = document.createElement('div');
+    el.className = 'game-over';
+    el.innerHTML = `<div style="text-align:center">\n      <strong>Victoire !</strong><br>\n      Vous avez terminé la liste. Score: ${score} <br>\n      <div style=\"margin-top:10px\"><button id=\"go-restart\">Recommencer</button></div>\n    </div>`;
+    document.body.appendChild(el);
+    if(gameBottom) gameBottom.style.display = 'none';
+    document.getElementById('go-restart').addEventListener('click', ()=>{
+      el.remove();
+      running = false;
+      ui.classList.add('show-controls');
+      if(gameBottom) gameBottom.style.display = 'none';
+      input.focus();
+    });
+  }
+
   function loop(ts){
     if(!running) return;
     const dt = (ts - lastTime)/1000;
@@ -211,9 +273,19 @@ window.addEventListener('load', ()=>{
         // meteor reached bottom: record the word that caused the life loss
         const removed = meteors.splice(i,1)[0];
         lostWords.push({fr: removed.fr, en: removed.en, shown: removed.show});
+        // If in final-boss mode, re-add this word to the end of the queue so player must face it again
+        if(gameMode === 'final-boss'){
+          bossQueue.push({fr: removed.fr, en: removed.en});
+        }
         lives -= 1;
         updateUI();
         if(lives<=0){ endGame(); return; }
+        // if in final-boss, check victory condition (if queue empty and no meteors)
+        if(gameMode === 'final-boss' && bossQueue.length === 0 && meteors.length === 0){
+          running = false;
+          showVictory();
+          return;
+        }
       }
     }
     requestAnimationFrame(loop);
@@ -326,8 +398,13 @@ window.addEventListener('load', ()=>{
       reader.onload = (ev)=>{
         try{
           const data = JSON.parse(ev.target.result);
-          if(Array.isArray(data) && data.length>0){ words = data; alert('Liste chargée: '+data.length+' mots'); }
-          else alert('Fichier invalide: format attendu JSON array');
+          if(Array.isArray(data) && data.length>0){
+            words = data;
+            // initialize mode pools for the newly loaded words
+            if(gameMode === 'random') poolRandom = shuffle(words.slice());
+            if(gameMode === 'final-boss') bossQueue = shuffle(words.slice());
+            alert('Liste chargée: '+data.length+' mots');
+          } else alert('Fichier invalide: format attendu JSON array');
         }catch(err){ alert('Erreur lecture JSON: '+err.message); }
       };
       reader.readAsText(f);
