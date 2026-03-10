@@ -62,3 +62,17 @@ body{background:linear-gradient(#00111a,#001f2e);color:#fff;overflow:hidden}
 /* visual feedback for wrong input */
 #input.wrong{animation: shake 0.28s ease; border-color: #ff6b6b; background: rgba(255,107,107,0.06)}
 @keyframes shake{0%{transform:translateX(0)}25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-4px)}100%{transform:translateX(0)}}
+
+/* accent correction bubble */
+.accent-bubble{
+  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:rgba(74,222,128,0.15);border:1px solid #4ade80;color:#4ade80;
+  padding:6px 14px;border-radius:8px;font-size:15px;font-weight:600;
+  white-space:nowrap;pointer-events:none;
+  opacity:0;transition:opacity 0.3s ease;
+}
+.accent-bubble.show{opacity:1}
+.accent-bubble::after{
+  content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  border:6px solid transparent;border-top-color:#4ade80;
+}

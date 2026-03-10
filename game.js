@@ -329,6 +329,22 @@ window.addEventListener('load', ()=>{
     requestAnimationFrame(loop);
   }
 
+  // helper: strip accents/diacritics for tolerant comparison
+  function stripAccents(s){
+    return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC');
+  }
+
+  // accent correction bubble
+  const accentBubble = document.getElementById('accent-bubble');
+  let bubbleTimeout = null;
+  function showAccentBubble(correctWord){
+    if(!accentBubble) return;
+    accentBubble.textContent = correctWord;
+    accentBubble.classList.add('show');
+    if(bubbleTimeout) clearTimeout(bubbleTimeout);
+    bubbleTimeout = setTimeout(()=>{ accentBubble.classList.remove('show'); }, 3000);
+  }
+
   // input handling
   input.addEventListener('keydown', (e)=>{
     if(e.key === 'Enter'){
@@ -336,12 +352,14 @@ window.addEventListener('load', ()=>{
       if(!val) return;
       for(let i=meteors.length-1;i>=0;i--){
         const answer = meteors[i].word[meteors[i].show === langA ? langB : langA];
-        if(answer.toLowerCase() === val){
+        const exactMatch = answer.toLowerCase() === val;
+        const tolerantMatch = !exactMatch && stripAccents(answer.toLowerCase()) === stripAccents(val);
+        if(exactMatch || tolerantMatch){
           meteors.splice(i,1);
           score += 10;
           updateUI();
           input.value = '';
-          return;
+          if(tolerantMatch) showAccentBubble(answer);
           return;
         }
       }
