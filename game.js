@@ -27,6 +27,14 @@ window.addEventListener('load', ()=>{
   let pendingPause = false; // when true, wait for screen to be empty then pause 5s
   let running = false;
   let words = [];
+  // language key detection
+  const LANG_NAMES = {
+    fr:'Français', en:'English', ja:'日本語', es:'Español',
+    de:'Deutsch', it:'Italiano', pt:'Português', zh:'中文',
+    ko:'한국어', ru:'Русский', ar:'العربية', nl:'Nederlands',
+    sv:'Svenska', pl:'Polski', tr:'Türkçe', hi:'हिन्दी'
+  };
+  let langA = 'fr', langB = 'en'; // detected from word data
   // controls elements (will be looked up after DOM ready)
   const sliderLives = document.getElementById('sliderLives');
   const sliderSpeed = document.getElementById('sliderSpeed');
@@ -66,11 +74,32 @@ window.addEventListener('load', ()=>{
     valSpawn.textContent = (spawnInterval/1000).toFixed(1) + 's';
   });
 
-  // direction mode select
-  let currentDir = dirMode ? dirMode.value : 'fr-en';
+  // direction mode select (populated dynamically after words load)
+  let currentDir = 'fr-en';
   if(dirMode){
     dirMode.addEventListener('change', ()=>{ currentDir = dirMode.value; });
   }
+
+  // detect language keys from word data and populate direction dropdown
+  function detectAndPopulateLangs(data){
+    if(!Array.isArray(data) || data.length === 0) return;
+    const keys = Object.keys(data[0]);
+    if(keys.length >= 2){ langA = keys[0]; langB = keys[1]; }
+    if(!dirMode) return;
+    dirMode.innerHTML = '';
+    const nameA = LANG_NAMES[langA] || langA;
+    const nameB = LANG_NAMES[langB] || langB;
+    [{v:`${langA}-${langB}`, t:`${nameA} → ${nameB}`},
+     {v:`${langB}-${langA}`, t:`${nameB} → ${nameA}`},
+     {v:'both', t:'Les deux'}].forEach(o=>{
+      const opt = document.createElement('option');
+      opt.value = o.v; opt.textContent = o.t;
+      dirMode.appendChild(opt);
+    });
+    currentDir = dirMode.value;
+    input.placeholder = 'Tapez la traduction...';
+  }
+
   // game mode select (normal | random | final-boss)
   let gameMode = gameModeEl ? gameModeEl.value : 'normal';
   if(gameModeEl){ gameModeEl.addEventListener('change', ()=>{ gameMode = gameModeEl.value; }); }
@@ -99,8 +128,8 @@ window.addEventListener('load', ()=>{
 
   function spawnMeteor(){
     if(words.length===0) return;
-    // prevent duplicate french words on screen
-    const present = new Set(meteors.map(m=>m.fr));
+    // prevent duplicate words on screen
+    const present = new Set(meteors.map(m=>m.word[langA]));
     let w = null;
     if(gameMode === 'final-boss'){
       // spawn next from bossQueue; if empty nothing to spawn
@@ -108,7 +137,7 @@ window.addEventListener('load', ()=>{
       // find next word not already on screen; try up to bossQueue.length
       for(let i=0;i<bossQueue.length;i++){
         const cand = bossQueue[0];
-        if(!present.has(cand.fr)){
+        if(!present.has(cand[langA])){
           w = bossQueue.shift();
           break;
         } else {
@@ -119,19 +148,19 @@ window.addEventListener('load', ()=>{
       if(!w) return; // all remaining words are already displayed
     } else {
       // normal mode: choose any available word at random
-      const available = words.filter(w2=>!present.has(w2.fr));
+      const available = words.filter(w2=>!present.has(w2[langA]));
       if(available.length===0) return; // no free words to spawn
       w = available[Math.floor(Math.random()*available.length)];
     }
     const fontSize = 26 + Math.random()*14;
     const base = 40 + Math.random()*80;
     // decide which side to display based on mode
-    let showSide = 'fr';
-    if(currentDir === 'both') showSide = (Math.random() < 0.5) ? 'fr' : 'en';
-    else if(currentDir === 'en-fr') showSide = 'en';
+    let showSide = langA;
+    if(currentDir === 'both') showSide = (Math.random() < 0.5) ? langA : langB;
+    else showSide = currentDir.split('-')[0];
 
   // length-based factor: base it on the word the player must type (the answer)
-  const answerWord = showSide === 'en' ? w.fr : w.en; // player types the opposite side
+  const answerWord = w[showSide === langA ? langB : langA]; // player types the opposite side
   const len = Math.max(1, (answerWord||'').length);
   // map length to factor: longer answer => slower fall.
   // stronger mapping so effect is more noticeable
@@ -143,9 +172,8 @@ window.addEventListener('load', ()=>{
       baseSpeed: base,
       lengthFactor,
       speed: base * lengthFactor * speedMultiplier,
-      fr: w.fr,
-      en: w.en,
-      show: showSide, // which side is visible on the meteor
+      word: w,
+      show: showSide, // which language key is visible on the meteor
       fontSize
     };
     meteors.push(meter);
@@ -198,8 +226,8 @@ window.addEventListener('load', ()=>{
     let lostHtml = '<em>Aucun</em>';
     if(lostWords.length>0){
       lostHtml = '<ul>' + lostWords.map(w=>{
-        const left = w.shown === 'fr' ? w.fr : w.en;
-        const right = w.shown === 'fr' ? w.en : w.fr;
+        const left = w.word[w.shown];
+        const right = w.word[w.shown === langA ? langB : langA];
         return `<li>${left} → ${right}</li>`;
       }).join('') + '</ul>';
     }
@@ -272,20 +300,20 @@ window.addEventListener('load', ()=>{
       ctx.fillStyle = '#b5651d';
       ctx.arc(m.x, m.y, m.fontSize/2 + 8, 0, Math.PI*2);
       ctx.fill();
-  // text (show either fr or en depending on meteor.show)
+  // text (show the word in the displayed language)
   ctx.fillStyle = '#fff';
   ctx.font = `${m.fontSize}px sans-serif`;
   ctx.textAlign = 'center';
-  const textToShow = m.show === 'en' ? m.en : m.fr;
+  const textToShow = m.word[m.show];
   ctx.fillText(textToShow, m.x, m.y + 6);
 
       if(m.y > height - 20){
         // meteor reached bottom: record the word that caused the life loss
         const removed = meteors.splice(i,1)[0];
-        lostWords.push({fr: removed.fr, en: removed.en, shown: removed.show});
+        lostWords.push({word: removed.word, shown: removed.show});
         // If in final-boss mode, re-add this word to the end of the queue so player must face it again
         if(gameMode === 'final-boss'){
-          bossQueue.push({fr: removed.fr, en: removed.en});
+          bossQueue.push(removed.word);
         }
         lives -= 1;
         updateUI();
@@ -307,9 +335,7 @@ window.addEventListener('load', ()=>{
       const val = input.value.trim().toLowerCase();
       if(!val) return;
       for(let i=meteors.length-1;i>=0;i--){
-        // check according to visible side
-        const visible = meteors[i].show === 'fr' ? meteors[i].fr : meteors[i].en;
-        const answer = meteors[i].show === 'fr' ? meteors[i].en : meteors[i].fr;
+        const answer = meteors[i].word[meteors[i].show === langA ? langB : langA];
         if(answer.toLowerCase() === val){
           meteors.splice(i,1);
           score += 10;
@@ -353,7 +379,7 @@ window.addEventListener('load', ()=>{
   // Use an embedded list of words only (no fetch/server)
   // Try fetching words.json first (works when served via http)
   fetch('words.json').then(r=>r.json()).then(data=>{
-    if(Array.isArray(data) && data.length>0){ words = data; console.log('Loaded words.json', words.length, 'words'); }
+    if(Array.isArray(data) && data.length>0){ words = data; detectAndPopulateLangs(words); console.log('Loaded words.json', words.length, 'words'); }
   }).catch(err=>{
     console.warn('Could not load words.json, will use embedded list unless user loads one', err);
   }).finally(()=>{
@@ -370,6 +396,7 @@ window.addEventListener('load', ()=>{
         {fr:'feu', en:'fire'},
         {fr:'arbre', en:'tree'}
       ];
+      detectAndPopulateLangs(words);
       console.log('Using embedded words list', words.length, 'words');
     }
   });
@@ -388,6 +415,7 @@ window.addEventListener('load', ()=>{
           const data = JSON.parse(ev.target.result);
           if(Array.isArray(data) && data.length>0){
             words = data;
+            detectAndPopulateLangs(words);
             // initialize mode pools for the newly loaded words
             if(gameMode === 'random') poolRandom = shuffle(words.slice());
             if(gameMode === 'final-boss') bossQueue = shuffle(words.slice());
