@@ -126,6 +126,26 @@ window.addEventListener('load', ()=>{
     livesEl.textContent = `Vies: ${lives}`;
   }
 
+  function loseMeteorAt(index){
+    const removed = meteors.splice(index,1)[0];
+    if(!removed) return;
+    lostWords.push({word: removed.word, shown: removed.show});
+    // In final-boss mode, a missed meteor returns to the queue.
+    if(gameMode === 'final-boss'){
+      bossQueue.push(removed.word);
+    }
+    lives -= 1;
+    updateUI();
+    if(lives<=0){
+      endGame();
+      return;
+    }
+    if(gameMode === 'final-boss' && bossQueue.length === 0 && meteors.length === 0){
+      running = false;
+      showVictory();
+    }
+  }
+
   function spawnMeteor(){
     if(words.length===0) return;
     // prevent duplicate words on screen
@@ -197,6 +217,7 @@ window.addEventListener('load', ()=>{
   for(const m of meteors){ m.speed = (m.baseSpeed || m.speed) * (m.lengthFactor || 1) * speedMultiplier; }
     updateUI();
     running = true;
+    document.body.classList.add('playing');
     console.log('Game started');
     // initialize mode-specific pools
     if(gameMode === 'final-boss'){
@@ -209,6 +230,7 @@ window.addEventListener('load', ()=>{
 
   function endGame(){
     running = false;
+    document.body.classList.remove('playing');
     showGameOver();
   }
 
@@ -239,6 +261,7 @@ window.addEventListener('load', ()=>{
       el.remove();
       // behave like the restart-bottom button: show settings and hide game bottom
       running = false;
+      document.body.classList.remove('playing');
       ui.classList.add('show-controls');
       if(gameBottom) gameBottom.style.display = 'none';
       const go = document.querySelector('.game-over'); if(go) go.remove();
@@ -255,6 +278,7 @@ window.addEventListener('load', ()=>{
     document.getElementById('go-restart').addEventListener('click', ()=>{
       el.remove();
       running = false;
+      document.body.classList.remove('playing');
       ui.classList.add('show-controls');
       if(gameBottom) gameBottom.style.display = 'none';
       input.focus();
@@ -295,35 +319,58 @@ window.addEventListener('load', ()=>{
     for(let i=meteors.length-1;i>=0;i--){
       const m = meteors[i];
       m.y += m.speed * dt;
-      // draw meteor
+      const r = m.fontSize/2 + 10;
+
+      // glow + tail to make meteors feel dynamic
+      ctx.save();
+      ctx.translate(m.x, m.y);
+      const tailLen = Math.min(80, Math.max(26, r + m.speed * 0.08));
+      const tail = ctx.createLinearGradient(-r*0.7, -tailLen, r*0.7, 0);
+      tail.addColorStop(0, 'rgba(255,220,160,0)');
+      tail.addColorStop(0.45, 'rgba(255,170,95,0.25)');
+      tail.addColorStop(1, 'rgba(255,120,82,0.55)');
+      ctx.fillStyle = tail;
       ctx.beginPath();
-      ctx.fillStyle = '#b5651d';
-      ctx.arc(m.x, m.y, m.fontSize/2 + 8, 0, Math.PI*2);
+      ctx.moveTo(-r*0.68, -2);
+      ctx.lineTo(r*0.68, -2);
+      ctx.lineTo(r*0.36, -tailLen);
+      ctx.lineTo(-r*0.36, -tailLen);
+      ctx.closePath();
       ctx.fill();
-  // text (show the word in the displayed language)
-  ctx.fillStyle = '#fff';
-  ctx.font = `${m.fontSize}px sans-serif`;
-  ctx.textAlign = 'center';
-  const textToShow = m.word[m.show];
-  ctx.fillText(textToShow, m.x, m.y + 6);
+
+      const meteorGrad = ctx.createRadialGradient(-r*0.35, -r*0.4, r*0.2, 0, 0, r);
+      meteorGrad.addColorStop(0, '#fff2b3');
+      meteorGrad.addColorStop(0.45, '#ffb347');
+      meteorGrad.addColorStop(1, '#d0582f');
+      ctx.shadowColor = 'rgba(255,164,95,0.65)';
+      ctx.shadowBlur = 24;
+      ctx.beginPath();
+      ctx.fillStyle = meteorGrad;
+      ctx.arc(0, 0, r, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(255,230,175,0.7)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(-r*0.18, -r*0.22, r*0.32, 0, Math.PI*2);
+      ctx.stroke();
+
+      // text (show the word in the displayed language)
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `${m.fontSize}px "Space Grotesk", "Bricolage Grotesk", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = Math.max(1.2, m.fontSize * 0.1);
+      ctx.strokeStyle = 'rgba(24,42,61,0.85)';
+      const textToShow = m.word[m.show];
+      ctx.strokeText(textToShow, 0, 2);
+      ctx.fillText(textToShow, 0, 2);
+      ctx.restore();
 
       if(m.y > height - 20){
-        // meteor reached bottom: record the word that caused the life loss
-        const removed = meteors.splice(i,1)[0];
-        lostWords.push({word: removed.word, shown: removed.show});
-        // If in final-boss mode, re-add this word to the end of the queue so player must face it again
-        if(gameMode === 'final-boss'){
-          bossQueue.push(removed.word);
-        }
-        lives -= 1;
-        updateUI();
-        if(lives<=0){ endGame(); return; }
-        // if in final-boss, check victory condition (if queue empty and no meteors)
-        if(gameMode === 'final-boss' && bossQueue.length === 0 && meteors.length === 0){
-          running = false;
-          showVictory();
-          return;
-        }
+        loseMeteorAt(i);
+        if(!running) return;
       }
     }
     requestAnimationFrame(loop);
@@ -370,6 +417,23 @@ window.addEventListener('load', ()=>{
     }
   });
 
+  canvas.addEventListener('click', (e)=>{
+    if(!running || meteors.length === 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    for(let i=meteors.length-1;i>=0;i--){
+      const m = meteors[i];
+      const r = m.fontSize/2 + 8;
+      const dx = x - m.x;
+      const dy = y - m.y;
+      if(dx*dx + dy*dy <= r*r){
+        loseMeteorAt(i);
+        return;
+      }
+    }
+  });
+
   // Start button: hide controls/menu and show game bottom UI then begin
   startBtn.addEventListener('click', ()=>{
     ui.classList.remove('show-controls');
@@ -383,6 +447,7 @@ window.addEventListener('load', ()=>{
   // Restart bottom button (shown during the game): behave like top restart
   restartBottom.addEventListener('click', ()=>{
     running = false;
+    document.body.classList.remove('playing');
     ui.classList.add('show-controls');
     if(gameBottom) gameBottom.style.display = 'none';
     const go = document.querySelector('.game-over'); if(go) go.remove();
@@ -391,6 +456,7 @@ window.addEventListener('load', ()=>{
   input.focus();
 
   // Show controls at initial load
+  document.body.classList.remove('playing');
   ui.classList.add('show-controls');
   if(gameBottom) gameBottom.style.display = 'none';
 
