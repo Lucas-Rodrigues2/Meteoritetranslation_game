@@ -117,9 +117,19 @@ window.addEventListener('load', ()=>{
     const key = getImageKey(wordObj);
     if(imageCache[key] !== undefined) return;
     imageCache[key] = 'loading';
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(key)}`)
+    // Use the Wikipedia in the right language (en preferred, else match the word's language)
+    let wikiLang = 'en';
+    if(!wordObj.en){
+      const latinKey = Object.keys(wordObj).find(k=>!['ja','zh','ar','ko','hi','ru'].includes(k));
+      if(latinKey) wikiLang = latinKey;
+      else if(wordObj.ja) wikiLang = 'ja';
+    }
+    const controller = new AbortController();
+    const tid = setTimeout(()=>controller.abort(), 8000); // 8s timeout
+    fetch(`https://${wikiLang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(key)}`, {signal: controller.signal})
       .then(r=>r.json())
       .then(data=>{
+        clearTimeout(tid);
         if(data.thumbnail && data.thumbnail.source){
           const img = new Image();
           img.crossOrigin = 'anonymous';
@@ -128,7 +138,7 @@ window.addEventListener('load', ()=>{
           img.src = data.thumbnail.source;
         } else { imageCache[key] = 'failed'; }
       })
-      .catch(()=>{ imageCache[key] = 'failed'; });
+      .catch(()=>{ clearTimeout(tid); imageCache[key] = 'failed'; });
   }
 
   // game mode select (normal | random | final-boss)
@@ -414,13 +424,23 @@ window.addEventListener('load', ()=>{
           const d = (r - 4) * 2;
           ctx.drawImage(cached, -(r-4), -(r-4), d, d);
           ctx.restore();
-        } else {
-          // image still loading: show animated dots
+        } else if(cached === 'loading'){
+          // still fetching: show dots
           ctx.fillStyle = '#ffffff';
           ctx.font = `bold ${Math.max(12, Math.floor(r*0.45))}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText('...', 0, 2);
+        } else {
+          // failed or unavailable: fall back to the text word
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `${m.fontSize}px "Space Grotesk", "Bricolage Grotesk", sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.lineWidth = Math.max(1.2, m.fontSize * 0.1);
+          ctx.strokeStyle = 'rgba(24,42,61,0.85)';
+          ctx.strokeText(textToShow, 0, 2);
+          ctx.fillText(textToShow, 0, 2);
         }
       } else {
         ctx.fillStyle = '#ffffff';
