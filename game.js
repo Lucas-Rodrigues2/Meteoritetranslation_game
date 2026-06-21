@@ -125,32 +125,43 @@ window.addEventListener('load', ()=>{
     }
   }
 
-  // Fetch and cache a Wikipedia thumbnail for a word
+  // Fetch and cache an image for a word using the MediaWiki pageimages API
   function preloadWordImage(wordObj){
     const key = getImageKey(wordObj);
     if(imageCache[key] !== undefined) return;
     imageCache[key] = 'loading';
     imagePendingCount++;
     updateStartBtn();
-    // Use the Wikipedia in the right language (en preferred, else match the word's language)
+
     let wikiLang = 'en';
     if(!wordObj.en){
       const latinKey = Object.keys(wordObj).find(k=>!['ja','zh','ar','ko','hi','ru'].includes(k));
       if(latinKey) wikiLang = latinKey;
       else if(wordObj.ja) wikiLang = 'ja';
     }
+
+    // Capitalize first letter — Wikipedia titles are capitalized
+    const title = key.charAt(0).toUpperCase() + key.slice(1);
     const controller = new AbortController();
-    const tid = setTimeout(()=>controller.abort(), 8000); // 8s timeout
-    fetch(`https://${wikiLang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(key)}`, {signal: controller.signal})
+    const tid = setTimeout(()=>controller.abort(), 10000);
+
+    // MediaWiki action API with pageimages + redirects: more reliable than REST summary
+    fetch(
+      `https://${wikiLang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&redirects=1&format=json&pithumbsize=300&pilimit=1&origin=*`,
+      {signal: controller.signal}
+    )
       .then(r=>r.json())
       .then(data=>{
         clearTimeout(tid);
-        if(data.thumbnail && data.thumbnail.source){
+        const pages = data.query && data.query.pages;
+        const page = pages && Object.values(pages)[0];
+        const src = page && page.thumbnail && page.thumbnail.source;
+        if(src){
           const img = new Image();
           img.crossOrigin = 'anonymous';
           img.onload = ()=>{ imageCache[key] = img; imagePendingCount--; updateStartBtn(); };
           img.onerror = ()=>{ imageCache[key] = 'failed'; imagePendingCount--; updateStartBtn(); };
-          img.src = data.thumbnail.source;
+          img.src = src;
         } else { imageCache[key] = 'failed'; imagePendingCount--; updateStartBtn(); }
       })
       .catch(()=>{ clearTimeout(tid); imageCache[key] = 'failed'; imagePendingCount--; updateStartBtn(); });
