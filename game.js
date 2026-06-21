@@ -113,6 +113,20 @@ window.addEventListener('load', ()=>{
     return wordObj[Object.keys(wordObj)[0]];
   }
 
+  // Strip leading articles so "la pomme" → "pomme", "l'ananas" → "ananas"
+  function stripArticles(word, lang){
+    const map = {
+      fr: /^(la |le |l['']|les |du |de la |de |des |un |une )/i,
+      pt: /^(a |o |as |os |um |uma )/i,
+      en: /^(the |an |a )/i,
+      es: /^(la |el |los |las |un |una )/i,
+      de: /^(der |die |das |ein |eine |dem |den )/i,
+      it: /^(la |il |lo |le |gli |l['']|un |una )/i,
+    };
+    const re = map[lang];
+    return re ? word.replace(re, '').trim() : word;
+  }
+
   // Update Start button: disabled with counter while images are still pending in image mode
   function updateStartBtn(){
     if(!startBtn) return;
@@ -158,7 +172,9 @@ window.addEventListener('load', ()=>{
       else if(wordObj.ja) wikiLang = 'ja';
     }
 
-    const title = key.charAt(0).toUpperCase() + key.slice(1);
+    // Strip articles ("la pomme" → "Pomme", "l'ananas" → "Ananas")
+    const cleaned = stripArticles(key, wikiLang);
+    const title = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
     const controller = new AbortController();
     const tid = setTimeout(()=>controller.abort(), 10000);
 
