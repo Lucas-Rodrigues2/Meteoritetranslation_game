@@ -163,48 +163,60 @@ window.addEventListener('load', ()=>{
 
   function fetchWordImageNow(wordObj){
     imageFetching++;
-    const key = getImageKey(wordObj);
+    const key = getImageKey(wordObj); // used as cache key (raw word)
 
-    let wikiLang = 'en';
-    if(!wordObj.en){
-      const latinKey = Object.keys(wordObj).find(k=>!['ja','zh','ar','ko','hi','ru'].includes(k));
-      if(latinKey) wikiLang = latinKey;
-      else if(wordObj.ja) wikiLang = 'ja';
+    // Build ordered list of (word, lang) pairs to try — English first, then all others
+    const tryList = [];
+    if(wordObj.en){
+      tryList.push({word: wordObj.en, lang: 'en'});
+    }
+    for(const [k, v] of Object.entries(wordObj)){
+      if(k !== 'en' && !['zh','ar','ko','hi','ru'].includes(k)){
+        tryList.push({word: v, lang: k});
+      }
+    }
+    for(const [k, v] of Object.entries(wordObj)){
+      if(['ja'].includes(k)) tryList.push({word: v, lang: 'ja'});
     }
 
-    // Strip articles ("la pomme" → "Pomme", "l'ananas" → "Ananas")
-    const cleaned = stripArticles(key, wikiLang);
-    const title = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-    const controller = new AbortController();
-    const tid = setTimeout(()=>controller.abort(), 10000);
-
     const done = (value) => {
-      clearTimeout(tid);
       imageCache[key] = value;
       imageFetching--;
       imagePendingCount--;
       updateStartBtn();
-      processImageQueue(); // start next batch
+      processImageQueue();
     };
 
-    fetch(
-      `https://${wikiLang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&redirects=1&format=json&pithumbsize=300&pilimit=1&origin=*`,
-      {signal: controller.signal}
-    )
-      .then(r=>r.json())
-      .then(data=>{
-        const pages = data.query && data.query.pages;
-        const page = pages && Object.values(pages)[0];
-        const src = page && page.thumbnail && page.thumbnail.source;
-        if(src){
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = ()=>done(img);
-          img.onerror = ()=>done('failed');
-          img.src = src;
-        } else { done('failed'); }
-      })
-      .catch(()=>done('failed'));
+    // Try each (word, lang) pair sequentially until one returns an image
+    function tryNext(idx){
+      if(idx >= tryList.length){ done('failed'); return; }
+      const {word, lang} = tryList[idx];
+      const cleaned = stripArticles(word, lang);
+      const title = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+      const controller = new AbortController();
+      const tid = setTimeout(()=>controller.abort(), 8000);
+      fetch(
+        `https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&redirects=1&format=json&pithumbsize=300&pilimit=1&origin=*`,
+        {signal: controller.signal}
+      )
+        .then(r=>r.json())
+        .then(data=>{
+          clearTimeout(tid);
+          const pages = data.query && data.query.pages;
+          const page = pages && Object.values(pages)[0];
+          const src = page && page.thumbnail && page.thumbnail.source;
+          if(src){
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = ()=>done(img);
+            img.onerror = ()=>tryNext(idx + 1); // image load failed, try next lang
+            img.src = src;
+          } else { tryNext(idx + 1); } // no thumbnail, try next lang
+        })
+        .catch(()=>{ clearTimeout(tid); tryNext(idx + 1); });
+    }
+
+    tryNext(0);
   }
 
   // game mode select (normal | random | final-boss)
