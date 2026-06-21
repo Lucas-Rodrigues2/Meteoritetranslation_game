@@ -125,6 +125,17 @@ window.addEventListener('load', ()=>{
     }
   }
 
+  // --- Image fetch queue (max 3 concurrent to avoid Wikipedia rate-limiting) ---
+  const imageQueue = [];
+  let imageFetching = 0;
+  const MAX_CONCURRENT_IMG = 3;
+
+  function processImageQueue(){
+    while(imageFetching < MAX_CONCURRENT_IMG && imageQueue.length > 0){
+      fetchWordImageNow(imageQueue.shift());
+    }
+  }
+
   // Fetch and cache an image for a word using the MediaWiki pageimages API
   function preloadWordImage(wordObj){
     const key = getImageKey(wordObj);
@@ -132,6 +143,13 @@ window.addEventListener('load', ()=>{
     imageCache[key] = 'loading';
     imagePendingCount++;
     updateStartBtn();
+    imageQueue.push(wordObj);
+    processImageQueue();
+  }
+
+  function fetchWordImageNow(wordObj){
+    imageFetching++;
+    const key = getImageKey(wordObj);
 
     let wikiLang = 'en';
     if(!wordObj.en){
@@ -140,31 +158,37 @@ window.addEventListener('load', ()=>{
       else if(wordObj.ja) wikiLang = 'ja';
     }
 
-    // Capitalize first letter — Wikipedia titles are capitalized
     const title = key.charAt(0).toUpperCase() + key.slice(1);
     const controller = new AbortController();
     const tid = setTimeout(()=>controller.abort(), 10000);
 
-    // MediaWiki action API with pageimages + redirects: more reliable than REST summary
+    const done = (value) => {
+      clearTimeout(tid);
+      imageCache[key] = value;
+      imageFetching--;
+      imagePendingCount--;
+      updateStartBtn();
+      processImageQueue(); // start next batch
+    };
+
     fetch(
       `https://${wikiLang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&redirects=1&format=json&pithumbsize=300&pilimit=1&origin=*`,
       {signal: controller.signal}
     )
       .then(r=>r.json())
       .then(data=>{
-        clearTimeout(tid);
         const pages = data.query && data.query.pages;
         const page = pages && Object.values(pages)[0];
         const src = page && page.thumbnail && page.thumbnail.source;
         if(src){
           const img = new Image();
           img.crossOrigin = 'anonymous';
-          img.onload = ()=>{ imageCache[key] = img; imagePendingCount--; updateStartBtn(); };
-          img.onerror = ()=>{ imageCache[key] = 'failed'; imagePendingCount--; updateStartBtn(); };
+          img.onload = ()=>done(img);
+          img.onerror = ()=>done('failed');
           img.src = src;
-        } else { imageCache[key] = 'failed'; imagePendingCount--; updateStartBtn(); }
+        } else { done('failed'); }
       })
-      .catch(()=>{ clearTimeout(tid); imageCache[key] = 'failed'; imagePendingCount--; updateStartBtn(); });
+      .catch(()=>done('failed'));
   }
 
   // game mode select (normal | random | final-boss)
