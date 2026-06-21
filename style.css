@@ -172,6 +172,35 @@ body.playing #gameCanvas{
   font-weight:600;
 }
 
+/* Toggle switch for Image Mode */
+.toggle-switch{
+  position:relative;
+  display:inline-block;
+  width:48px;
+  height:26px;
+  cursor:pointer;
+}
+.toggle-switch input{ opacity:0; width:0; height:0; }
+.toggle-slider{
+  position:absolute;
+  inset:0;
+  border-radius:26px;
+  background:#1e3b58;
+  border:1px solid #4da6cc66;
+  transition:background 200ms ease;
+}
+.toggle-slider::before{
+  content:'';
+  position:absolute;
+  width:18px; height:18px;
+  left:4px; top:3px;
+  border-radius:50%;
+  background:#6ab4d8;
+  transition:transform 200ms ease, background 200ms ease;
+}
+.toggle-switch input:checked + .toggle-slider{ background:linear-gradient(110deg, var(--accent), var(--accent-2)); border-color:var(--accent); }
+.toggle-switch input:checked + .toggle-slider::before{ transform:translateX(22px); background:#fff; }
+
 .control input[type=range]{
   width:100%;
   accent-color:var(--accent);

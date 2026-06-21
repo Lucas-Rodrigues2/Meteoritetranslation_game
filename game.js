@@ -44,6 +44,9 @@ window.addEventListener('load', ()=>{
   const valSpawn = document.getElementById('valSpawn');
   const dirMode = document.getElementById('dirMode');
   const gameModeEl = document.getElementById('gameMode');
+  const imageModeEl = document.getElementById('imageMode');
+  let imageMode = false;
+  const imageCache = {}; // englishWord -> HTMLImageElement | 'loading' | 'failed'
 
   // initial values from sliders
   lives = parseInt(sliderLives.value, 10) || 3;
@@ -100,9 +103,46 @@ window.addEventListener('load', ()=>{
     input.placeholder = 'Tapez la traduction...';
   }
 
+  // Return the best key to use for image search (prefer English)
+  function getImageKey(wordObj){
+    if(wordObj.en) return wordObj.en;
+    for(const k of Object.keys(wordObj)){
+      if(!['ja','zh','ar','ko','hi','ru'].includes(k)) return wordObj[k];
+    }
+    return wordObj[Object.keys(wordObj)[0]];
+  }
+
+  // Fetch and cache a Wikipedia thumbnail for a word
+  function preloadWordImage(wordObj){
+    const key = getImageKey(wordObj);
+    if(imageCache[key] !== undefined) return;
+    imageCache[key] = 'loading';
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(key)}`)
+      .then(r=>r.json())
+      .then(data=>{
+        if(data.thumbnail && data.thumbnail.source){
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = ()=>{ imageCache[key] = img; };
+          img.onerror = ()=>{ imageCache[key] = 'failed'; };
+          img.src = data.thumbnail.source;
+        } else { imageCache[key] = 'failed'; }
+      })
+      .catch(()=>{ imageCache[key] = 'failed'; });
+  }
+
   // game mode select (normal | random | final-boss)
   let gameMode = gameModeEl ? gameModeEl.value : 'normal';
   if(gameModeEl){ gameModeEl.addEventListener('change', ()=>{ gameMode = gameModeEl.value; }); }
+
+  // image mode toggle
+  if(imageModeEl){
+    imageModeEl.addEventListener('change', ()=>{
+      imageMode = imageModeEl.checked;
+      // preload images for all current words immediately when toggled on
+      if(imageMode && words.length > 0){ for(const w of words) preloadWordImage(w); }
+    });
+  }
 
   // helper: shuffle array
   function shuffle(a){
@@ -194,9 +234,11 @@ window.addEventListener('load', ()=>{
       speed: base * lengthFactor * speedMultiplier,
       word: w,
       show: showSide, // which language key is visible on the meteor
-      fontSize
+      fontSize,
+      r: imageMode ? 55 : undefined // larger hit-circle in image mode
     };
     meteors.push(meter);
+    if(imageMode) preloadWordImage(w);
     // increment spawn counter and mark pending pause every 10 spawns
     spawnCount += 1;
     if(spawnCount % 10 === 0){ pendingPause = true; }
@@ -223,6 +265,8 @@ window.addEventListener('load', ()=>{
     if(gameMode === 'final-boss'){
       bossQueue = shuffle(words.slice());
     }
+    // preload images for all words if image mode is active
+    if(imageMode){ for(const w of words) preloadWordImage(w); }
     // immediate feedback: spawn one meteor right away so the user sees something
     spawnMeteor();
     requestAnimationFrame(loop);
@@ -319,7 +363,7 @@ window.addEventListener('load', ()=>{
     for(let i=meteors.length-1;i>=0;i--){
       const m = meteors[i];
       m.y += m.speed * dt;
-      const r = m.fontSize/2 + 10;
+      const r = (m.r !== undefined) ? m.r : (m.fontSize/2 + 10);
 
       // glow + tail to make meteors feel dynamic
       ctx.save();
@@ -356,16 +400,38 @@ window.addEventListener('load', ()=>{
       ctx.arc(-r*0.18, -r*0.22, r*0.32, 0, Math.PI*2);
       ctx.stroke();
 
-      // text (show the word in the displayed language)
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `${m.fontSize}px "Space Grotesk", "Bricolage Grotesk", sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineWidth = Math.max(1.2, m.fontSize * 0.1);
-      ctx.strokeStyle = 'rgba(24,42,61,0.85)';
+      // text or image (show the word in the displayed language)
       const textToShow = m.word[m.show];
-      ctx.strokeText(textToShow, 0, 2);
-      ctx.fillText(textToShow, 0, 2);
+      if(imageMode && m.r !== undefined){
+        const key = getImageKey(m.word);
+        const cached = imageCache[key];
+        if(cached instanceof HTMLImageElement){
+          // clip image to the meteor circle
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(0, 0, r - 4, 0, Math.PI*2);
+          ctx.clip();
+          const d = (r - 4) * 2;
+          ctx.drawImage(cached, -(r-4), -(r-4), d, d);
+          ctx.restore();
+        } else {
+          // image still loading: show animated dots
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold ${Math.max(12, Math.floor(r*0.45))}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('...', 0, 2);
+        }
+      } else {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${m.fontSize}px "Space Grotesk", "Bricolage Grotesk", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = Math.max(1.2, m.fontSize * 0.1);
+        ctx.strokeStyle = 'rgba(24,42,61,0.85)';
+        ctx.strokeText(textToShow, 0, 2);
+        ctx.fillText(textToShow, 0, 2);
+      }
       ctx.restore();
 
       if(m.y > height - 20){
