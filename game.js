@@ -47,6 +47,7 @@ window.addEventListener('load', ()=>{
   const imageModeEl = document.getElementById('imageMode');
   let imageMode = false;
   const imageCache = {}; // englishWord -> HTMLImageElement | 'loading' | 'failed'
+  let imagePendingCount = 0; // images still being fetched/decoded
 
   // initial values from sliders
   lives = parseInt(sliderLives.value, 10) || 3;
@@ -112,11 +113,25 @@ window.addEventListener('load', ()=>{
     return wordObj[Object.keys(wordObj)[0]];
   }
 
+  // Update Start button: disabled with counter while images are still pending in image mode
+  function updateStartBtn(){
+    if(!startBtn) return;
+    if(imageMode && imagePendingCount > 0){
+      startBtn.disabled = true;
+      startBtn.textContent = `⏳ ${imagePendingCount} image${imagePendingCount > 1 ? 's' : ''} en cours…`;
+    } else {
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start';
+    }
+  }
+
   // Fetch and cache a Wikipedia thumbnail for a word
   function preloadWordImage(wordObj){
     const key = getImageKey(wordObj);
     if(imageCache[key] !== undefined) return;
     imageCache[key] = 'loading';
+    imagePendingCount++;
+    updateStartBtn();
     // Use the Wikipedia in the right language (en preferred, else match the word's language)
     let wikiLang = 'en';
     if(!wordObj.en){
@@ -133,12 +148,12 @@ window.addEventListener('load', ()=>{
         if(data.thumbnail && data.thumbnail.source){
           const img = new Image();
           img.crossOrigin = 'anonymous';
-          img.onload = ()=>{ imageCache[key] = img; };
-          img.onerror = ()=>{ imageCache[key] = 'failed'; };
+          img.onload = ()=>{ imageCache[key] = img; imagePendingCount--; updateStartBtn(); };
+          img.onerror = ()=>{ imageCache[key] = 'failed'; imagePendingCount--; updateStartBtn(); };
           img.src = data.thumbnail.source;
-        } else { imageCache[key] = 'failed'; }
+        } else { imageCache[key] = 'failed'; imagePendingCount--; updateStartBtn(); }
       })
-      .catch(()=>{ clearTimeout(tid); imageCache[key] = 'failed'; });
+      .catch(()=>{ clearTimeout(tid); imageCache[key] = 'failed'; imagePendingCount--; updateStartBtn(); });
   }
 
   // game mode select (normal | random | final-boss)
@@ -151,6 +166,7 @@ window.addEventListener('load', ()=>{
       imageMode = imageModeEl.checked;
       // preload images for all current words immediately when toggled on
       if(imageMode && words.length > 0){ for(const w of words) preloadWordImage(w); }
+      updateStartBtn();
     });
   }
 
