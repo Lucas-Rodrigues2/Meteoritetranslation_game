@@ -568,7 +568,6 @@ window.addEventListener('load', ()=>{
     if(Array.isArray(data) && data.length>0){
       words = data;
       detectAndPopulateLangs(words);
-      for(const w of words) preloadWordImage(w); // précharge toutes les images dès le démarrage
       console.log('Loaded words.json', words.length, 'words');
     }
   }).catch(err=>{
@@ -588,7 +587,6 @@ window.addEventListener('load', ()=>{
         {fr:'arbre', en:'tree'}
       ];
       detectAndPopulateLangs(words);
-      for(const w of words) preloadWordImage(w);
       console.log('Using embedded words list', words.length, 'words');
     }
   });
@@ -608,7 +606,7 @@ window.addEventListener('load', ()=>{
           if(Array.isArray(data) && data.length>0){
             words = data;
             detectAndPopulateLangs(words);
-            for(const w of words) preloadWordImage(w); // précharge les images de la nouvelle liste
+            if(imageMode){ for(const w of words) preloadWordImage(w); } // précharge seulement si mode image actif
             // initialize mode pools for the newly loaded words
             if(gameMode === 'random') poolRandom = shuffle(words.slice());
             if(gameMode === 'final-boss') bossQueue = shuffle(words.slice());
